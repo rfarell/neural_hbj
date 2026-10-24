@@ -68,14 +68,14 @@ All numbers are means over 3 seeds on 4096 fixed test points $(t, x)$ with $t$ u
 
 The v1.0 policies were already close to optimal (and marginally better at n = 6); the main gain is the cost-to-go at n = 8, which v1.0 had off by 23%. As a mean-squared error (the metric the v1.0 README reported), the v1.1 cost-to-go reaches 0.0012, 0.0040, 0.015 and 0.051 for n = 2, 4, 6, 8, against 0.0012, 0.0044, 0.032 and 4.6 for the retrained v1.0 code.
 
-![Errors against dimension for each training variant](motion_control/results/figures/error_vs_dimension.png)
-*Cost-to-go error, control error (mean $\lVert u - u^* \rVert^2$ where $u^*$ is unique) and excess cost against dimension, for the method, the ablations described below and the v1.0 code. Bars span the 3 seeds.*
+![Cost-to-go error and excess cost against dimension, v1.1 and v1.0](motion_control/results/figures/comparison.png)
+*The table above as a function of dimension. Points are means over 3 seeds and bars span the seeds.*
 
 ![Cost-to-go and control errors in 2-D](motion_control/results/figures/n2_slices.png)
 *n = 2, full method, seed 0. Top: cost-to-go error, within ±0.25 everywhere and largest in the corners of the box near $T$. Bottom: control error with the learned control field; the error is confined to the origin, where $u^*$ is undefined.*
 
 ![Training losses](motion_control/results/figures/training_curves.png)
-*HJB residual and cost-to-go fit during training (full method, seed 0). Each 1000 epochs is a stage; each stage extends the horizon backward by $T/5$.*
+*HJB residual and cost-to-go fit during training (full method, seed 0), smoothed over 50 epochs. Each stage extends the range of sampled $t$ backward by $T/5$.*
 
 ### Resource allocation
 
@@ -89,7 +89,7 @@ The switching-time error is $\lvert t_{\text{switch}} - t_s \rvert$ for closed-l
 The v1.0 reward-to-go was wrong because its HJB loss was: at the exact solution its three residual terms evaluate to 21, 1.8 and 43 instead of 0. Its policy was nonetheless accurate, because the policy learned from the simulated reward, which was correct. It also switches more sharply than v1.1's, which smooths the switch over a few tenths of a time unit and gives up about 0.1% of the reward. Training with 100 instead of 40 RK4 steps per rollout did not sharpen it.
 
 ![Learned control and reward-to-go](resource_allocation/results/figures/solution.png)
-*Full method, seed 0. Left: control along closed-loop paths from four initial states. Right: learned reward-to-go per unit production against the exact $\phi(t)$, which the three learned curves follow closely, and the v1.0 network's (gray).*
+*Full method, seed 0, with the v1.0 code (seed 0) in gray. Left: control along closed-loop paths; the four learned paths from $x_0 = 1, \dots, 4$ nearly coincide. Right: learned reward-to-go divided by $x$, which should match the exact $\phi(t)$ for every $x$.*
 
 ### What each loss term contributes
 
@@ -103,6 +103,9 @@ Every variant below was trained with the same seeds and settings, with the named
 | No `hamiltonian` | 1.6% / 0.0011% | 1.3% / 0.0010% | 2.1% / 0.0011% | 3.1% / 0.0009% |
 | No `hjb_dt`, `hjb_dx` | 1.8% / 0.0029% | 1.9% / 0.012% | 3.1% / 0.036% | 3.5% / 0.042% |
 | No HJB terms (only `terminal`, `value_fit`, `policy`) | 2.4% / 0.0011% | 2.7% / 0.0010% | 3.4% / 0.0011% | 4.6% / 0.0009% |
+
+![Cost-to-go error and excess cost against dimension for each ablation](motion_control/results/figures/ablation.png)
+*The motion-control table above as a function of dimension (bars span the 3 seeds). The two variants without the `hamiltonian` term train identical policies, so their excess costs coincide.*
 
 **Resource allocation**:
 

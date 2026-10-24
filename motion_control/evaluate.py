@@ -57,26 +57,28 @@ def evaluate(problem: MotionControl, policy, value) -> Dict[str, float]:
     }
 
 
-def plot_error_vs_dimension(metrics: pd.DataFrame, path: Path) -> None:
+def plot_metrics_vs_dimension(metrics: pd.DataFrame, variants, path: Path) -> None:
+    """Cost-to-go error and excess cost against dimension for the given variants (bars span the seeds)."""
     panels = [
         ("value_rel_err", "Cost-to-go error", r"$\|J - J^*\| \,/\, \|J^*\|$"),
-        ("policy_err", "Control error", r"mean $\|u - u^*\|^2$ where $u^*$ is unique"),
         ("cost_gap", "Excess cost of the learned policy", r"$(\mathbb{E}[C] - \mathbb{E}[J^*]) \,/\, \mathbb{E}[J^*]$"),
     ]
-    fig, axes = plt.subplots(1, len(panels), figsize=(13, 3.8))
+    variants = [v for v in variants if (metrics.variant == v).any()]
+    fig, axes = plt.subplots(1, len(panels), figsize=(10, 3.8))
     for ax, (column, title, ylabel) in zip(axes, panels):
-        for variant, style in plotting.VARIANT_STYLE.items():
-            runs = metrics[metrics.variant == variant]
-            if runs.empty:
-                continue
-            stats = runs.groupby("dim")[column].agg(["mean", "min", "max"])
+        for i, variant in enumerate(variants):
+            style = plotting.VARIANT_STYLE[variant]
+            stats = metrics[metrics.variant == variant].groupby("dim")[column].agg(["mean", "min", "max"])
+            # Offset each variant slightly so overlapping error bars stay readable.
+            offset = 0.12 * (i - (len(variants) - 1) / 2)
             ax.errorbar(
-                stats.index, stats["mean"],
+                stats.index + offset, stats["mean"],
                 yerr=[stats["mean"] - stats["min"], stats["max"] - stats["mean"]],
                 color=style["color"], marker=style["marker"], ls=style["ls"], label=style["label"], capsize=3,
             )
-        ax.set_yscale("log")
+        plotting.percent_log_axis(ax)
         ax.set_xticks(sorted(metrics.dim.unique()))
+        ax.grid(False, axis="x")
         ax.set_xlabel("State dimension n")
         ax.set_ylabel(ylabel)
         ax.set_title(title, loc="left")
@@ -123,25 +125,36 @@ def plot_slices(problem: MotionControl, policy, value, path: Path, times=(0.0, 0
             ax.set_xlabel("$x_1$")
             ax.set_ylabel("$x_2$")
             ax.grid(False)
-    fig.colorbar(im_j, ax=axes[0, :], shrink=0.85, label="cost-to-go error")
-    fig.colorbar(im_u, ax=axes[1, :], shrink=0.85, label="control error")
-    fig.suptitle("Motion control, n = 2. Dashed circle: ||x|| = T - t; inside it J* = 0 and u* is not unique.",
+    fig.colorbar(im_j, ax=axes[0, :], shrink=0.85, label="cost-to-go error $J - J^*$")
+    fig.colorbar(im_u, ax=axes[1, :], shrink=0.85, label=r"control error $\|u - u^*\|$")
+    fig.suptitle(r"Motion control, n = 2. Dashed circle: $\|x\| = T - t$; inside it $J^* = 0$ and $u^*$ is not unique.",
                  x=0.0, ha="left", fontsize=10, color=plotting.INK_SECONDARY)
     fig.savefig(path)
     plt.close(fig)
 
 
-def plot_training_curves(histories: Dict[int, pd.DataFrame], path: Path, window: int = 50) -> None:
-    panels = [("hjb", "HJB residual, mean $r^2$"), ("value_fit", "Cost-to-go fit to simulated cost")]
+def plot_training_curves(histories: Dict[int, pd.DataFrame], path: Path, T: float, window: int = 50) -> None:
+    """Smoothed HJB residual and value-fit losses, with the x axis marked by training stage."""
+    panels = [("hjb", "HJB residual, mean $r^2$"), ("value_fit", r"Cost-to-go fit to simulated cost, mean $(J - C)^2$")]
+    stages = next(iter(histories.values())).groupby("stage", sort=False)
+    num_stages = stages.ngroups
     fig, axes = plt.subplots(1, len(panels), figsize=(11, 3.6), sharex=True)
     for ax, (column, title) in zip(axes, panels):
         for i, (dim, history) in enumerate(sorted(histories.items())):
             smooth = history[column].rolling(window, min_periods=1).mean()
             ax.plot(history.index, smooth, color=plotting.SERIES[i], label=f"n = {dim}", lw=1.4)
-        for boundary in history.index[history.stage.diff().fillna(0) != 0]:
-            ax.axvline(boundary, color=plotting.GRID, lw=1.0, zorder=0)
+        # Label each stage by the range of t it samples instead of by epoch number.
+        ticks, labels = [], []
+        for k, epochs in stages.groups.items():
+            if epochs.min() > 0:
+                ax.axvline(epochs.min(), color=plotting.INK_SECONDARY, lw=0.6, alpha=0.5, zorder=0)
+            ticks.append(epochs.to_numpy().mean())
+            labels.append(f"[{T * k / num_stages:g}, {T:g}]")
+        ax.set_xticks(ticks, labels)
+        ax.tick_params(axis="x", length=0)
+        ax.grid(False, axis="x")
         ax.set_yscale("log")
-        ax.set_xlabel("Epoch (stages widen the horizon backward from T)")
+        ax.set_xlabel(f"Training stage: range of t sampled ({len(epochs)} epochs each)")
         ax.set_title(title, loc="left")
     axes[0].legend(ncol=2)
     fig.tight_layout()
@@ -169,14 +182,16 @@ def main() -> None:
     summary.reset_index().to_csv(RESULTS_DIR / "summary.csv", index=False, float_format="%.4g")
     print(summary[[f"{m}_mean" for m in METRICS]].to_string(float_format="%.4g"))
 
-    plot_error_vs_dimension(metrics, FIGURE_DIR / "error_vs_dimension.png")
+    plot_metrics_vs_dimension(metrics, ["full", "original"], FIGURE_DIR / "comparison.png")
+    plot_metrics_vs_dimension(metrics, ["full", "no_hamiltonian", "no_hjb_grad", "no_hjb"],
+                              FIGURE_DIR / "ablation.png")
     if ("full", "n2", 0) in runs:
         problem, policy, value, _ = load_run(runs[("full", "n2", 0)], MotionControl)
         plot_slices(problem, policy, value, FIGURE_DIR / "n2_slices.png")
     histories = {int(tag[1:]): pd.read_csv(path.with_suffix(".csv"), index_col="epoch")
                  for (variant, tag, seed), path in runs.items() if variant == "full" and seed == 0}
     if histories:
-        plot_training_curves(histories, FIGURE_DIR / "training_curves.png")
+        plot_training_curves(histories, FIGURE_DIR / "training_curves.png", MotionControl().T)
 
 
 if __name__ == "__main__":

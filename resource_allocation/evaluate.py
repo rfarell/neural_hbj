@@ -84,15 +84,25 @@ def evaluate(problem: ResourceAllocation, policy, value) -> Dict[str, float]:
 
 @torch.no_grad()
 def plot_solution(problem: ResourceAllocation, policy, value, path: Path, reference=None) -> None:
-    """Closed-loop control paths and the learned reward-to-go against the exact solution."""
+    """Closed-loop control paths and the learned reward-to-go against the exact solution.
+
+    reference: optional (policy, value) of the original code, drawn in gray for comparison.
+    """
     fig, (ax_u, ax_v) = plt.subplots(1, 2, figsize=(12, 4.2))
+    learned = {"color": plotting.SERIES[0], "lw": 1.4}
+    original = {"color": plotting.REFERENCE, "lw": 1.4}
+    exact = {"color": plotting.INK, "ls": "--", "lw": 1.6}
 
     x0 = torch.tensor([[1.0], [2.0], [3.0], [4.0]])
     t, _, u = closed_loop_paths(problem, policy, x0)
     u_star = problem.optimal_control(t[:, None], torch.ones(len(t), 1))[:, 0]
-    ax_u.plot(t, u_star, color=plotting.INK, ls="--", lw=1.6, label="exact $u^*$")
+    ax_u.plot(t, u_star, label="exact $u^*$", **exact)
     for i in range(len(x0)):
-        ax_u.plot(t, u[:, i], color=plotting.SERIES[i], label=f"learned, $x_0$ = {x0[i, 0]:g}")
+        label = "learned, $x_0$ = " + ", ".join(f"{v:g}" for v in x0[:, 0].tolist()) if i == 0 else None
+        ax_u.plot(t, u[:, i], label=label, **learned)
+    if reference is not None:
+        t_ref, _, u_ref = closed_loop_paths(problem, reference[0], torch.tensor([[3.0]]))
+        ax_u.plot(t_ref, u_ref[:, 0], label="original code, $x_0$ = 3", **original)
     ax_u.set_xlabel("Time t")
     ax_u.set_ylabel("Reinvested fraction u")
     ax_u.set_ylim(-0.05, 1.05)
@@ -100,20 +110,21 @@ def plot_solution(problem: ResourceAllocation, policy, value, path: Path, refere
     ax_u.legend(loc="center left")
 
     t = torch.linspace(0, problem.T, 401)[:, None]
-    ax_v.plot(t, problem.value_coefficient(t), color=plotting.INK, ls="--", lw=1.6, label=r"exact $\phi(t)$")
-    for i, x_val in enumerate((1.0, 3.0, 5.0)):
-        x = torch.full_like(t, x_val)
-        ax_v.plot(t, -value(t, x) / x_val, color=plotting.SERIES[i], label=f"learned, x = {x_val:g}")
+    ax_v.plot(t, problem.value_coefficient(t), label=r"exact $\phi(t)$", **exact)
+    x_values = (1.0, 3.0, 5.0)
+    for i, x_val in enumerate(x_values):
+        label = "learned, x = " + ", ".join(f"{v:g}" for v in x_values) if i == 0 else None
+        ax_v.plot(t, -value(t, torch.full_like(t, x_val)) / x_val, label=label, **learned)
     if reference is not None:
-        ref_value, ref_label = reference
-        x = torch.full_like(t, 3.0)
-        ax_v.plot(t, -ref_value(t, x) / 3.0, color=plotting.REFERENCE, lw=1.4, label=f"{ref_label}, x = 3")
+        ax_v.plot(t, -reference[1](t, torch.full_like(t, 3.0)) / 3.0, label="original code, x = 3", **original)
     ax_v.set_xlabel("Time t")
-    ax_v.set_ylabel("Reward-to-go per unit production, V(t, x) / x")
-    ax_v.set_title(r"Reward-to-go: exact $V^* = x\,\phi(t)$", loc="left")
+    ax_v.set_ylabel(r"$V(t, x) \,/\, x$")
+    ax_v.set_title(r"Reward-to-go per unit production, exact $V^* = x\,\phi(t)$", loc="left")
     ax_v.legend()
     for ax in (ax_u, ax_v):
-        ax.axvline(problem.switching_time, color=plotting.GRID, lw=1.0, zorder=0)
+        ax.axvline(problem.switching_time, color=plotting.INK_SECONDARY, lw=0.6, alpha=0.5, zorder=0)
+        ax.text(problem.switching_time, 1.0, " $t_s$", transform=ax.get_xaxis_transform(),
+                va="top", color=plotting.INK_SECONDARY)
     fig.tight_layout()
     fig.savefig(path)
     plt.close(fig)
@@ -143,7 +154,7 @@ def main() -> None:
         problem, policy, value, _ = load_run(runs[("full", "ra", 0)], ResourceAllocation)
         reference = None
         if ("original", "ra", 0) in runs:
-            reference = (load_run(runs[("original", "ra", 0)], ResourceAllocation)[2], "original code")
+            reference = load_run(runs[("original", "ra", 0)], ResourceAllocation)[1:3]
         plot_solution(problem, policy, value, FIGURE_DIR / "solution.png", reference)
 
 

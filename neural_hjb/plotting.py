@@ -1,11 +1,14 @@
 """Shared figure style: one categorical order, recessive axes, blue sequential and blue-red diverging maps."""
 
+import math
+
 import matplotlib
 
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
+from matplotlib.ticker import FuncFormatter, NullFormatter  # noqa: E402
 
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 REFERENCE = "#8a8984"  # exact solutions and the original code, drawn as neutral references
@@ -23,14 +26,25 @@ DIVERGING = LinearSegmentedColormap.from_list(
 
 # Fixed color per training variant so every figure agrees.
 # The two variants without the Hamiltonian term train identical policies, so 'no_hjb'
-# is dashed to keep both visible where their curves coincide.
+# is dashed to keep both visible where their curves nearly coincide.
 VARIANT_STYLE = {
-    "full": {"label": "Full method", "color": SERIES[0], "marker": "o", "ls": "-"},
+    "full": {"label": "Full method (v1.1)", "color": SERIES[0], "marker": "o", "ls": "-"},
     "no_hamiltonian": {"label": "No Hamiltonian term", "color": SERIES[1], "marker": "v", "ls": "-"},
     "no_hjb_grad": {"label": "No residual-gradient terms", "color": SERIES[2], "marker": "s", "ls": "-"},
     "no_hjb": {"label": "No HJB terms", "color": SERIES[3], "marker": "^", "ls": "--"},
-    "original": {"label": "Original code", "color": REFERENCE, "marker": "D", "ls": "-"},
+    "original": {"label": "Original code (v1.0)", "color": REFERENCE, "marker": "D", "ls": "-"},
 }
+
+
+def percent_log_axis(ax) -> None:
+    """Log-scale the y axis of a plotted Axes and label it in percent, with ticks at 1, 2, 5 x 10^k."""
+    ax.set_yscale("log")
+    lo, hi = ax.get_ylim()
+    ticks = [m * 10.0 ** k for k in range(math.floor(math.log10(lo)), math.ceil(math.log10(hi)) + 1)
+             for m in (1, 2, 5)]
+    ax.set_yticks([v for v in ticks if lo <= v <= hi])
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{100 * v:.3g}%"))
+    ax.yaxis.set_minor_formatter(NullFormatter())
 
 
 def apply_style() -> None:
