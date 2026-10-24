@@ -1,58 +1,22 @@
 #!/bin/bash
-# Run all experiments for Neural HJB
+# Reproduce the README results (all but the v1.0 "Original" rows): train, then evaluate and plot.
+# Uses the active Python (activate the env from ./setup.sh first) unless PYTHON is set.
+# Existing checkpoints are reused; pass --force to retrain them.
+#
+#   ./run.sh                     full method + ablations, 3 seeds (about 1 hour on 8 cores)
+#   VARIANTS=full SEEDS=0 ./run.sh   the method alone, one seed
+set -euo pipefail
+cd "$(dirname "$0")"
+PYTHON=${PYTHON:-python}
+VARIANTS=${VARIANTS:-full no_hamiltonian no_hjb_grad no_hjb}
+SEEDS=${SEEDS:-0 1 2}
 
-echo "🚀 Running Neural HJB Experiments"
-echo "================================="
+echo "== Motion control =="
+$PYTHON -m motion_control.train --dims 2 4 6 8 --variants $VARIANTS --seeds $SEEDS "$@"
+$PYTHON -m motion_control.evaluate
 
-# Check if conda environment exists
-if ! conda env list | grep -q "neural_hjb"; then
-    echo "⚠️  Conda environment 'neural_hjb' not found."
-    echo "Please run ./setup.sh first to create the environment."
-    exit 1
-fi
+echo "== Resource allocation =="
+$PYTHON -m resource_allocation.train --variants $VARIANTS --seeds $SEEDS "$@"
+$PYTHON -m resource_allocation.evaluate
 
-# Function to run commands in conda environment
-run_in_env() {
-    conda run -n neural_hjb "$@"
-}
-
-# Motion Control Experiments
-echo ""
-echo "📊 Motion Control Experiments"
-echo "----------------------------"
-cd motion_control/scripts
-
-echo "Training models for dimensions 2, 4, 6, 8..."
-run_in_env python train.py --dimensions 2 4 6 8 --num_epochs 1000
-
-echo "Evaluating models..."
-run_in_env python evaluate.py
-
-echo "Generating heatmaps..."
-run_in_env python heatmaps.py
-
-cd ../..
-
-# Resource Allocation Experiments
-echo ""
-echo "📊 Resource Allocation Experiments"
-echo "---------------------------------"
-cd resource_allocation/scripts
-
-echo "Training resource allocation model..."
-run_in_env python train.py --num_epochs 1000
-
-echo "Evaluating model..."
-run_in_env python evaluate.py
-
-echo "Showing various control paths..."
-run_in_env python show_various_paths.py
-
-cd ../..
-
-echo ""
-echo "✅ All experiments complete!"
-echo ""
-echo "Results can be found in:"
-echo "  - motion_control/results/"
-echo "  - resource_allocation/results/"
+echo "Results: motion_control/results/ and resource_allocation/results/"

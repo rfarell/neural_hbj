@@ -1,1 +1,1 @@
-"""Motion control module for solving HJB equations."""
+"""Motion control: drive x to the origin at bounded speed, ||u|| <= 1."""

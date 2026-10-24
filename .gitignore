@@ -54,16 +54,12 @@ env/
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
-# Ignore data files (optional, adjust as needed)
-# For example, to ignore all CSV and PT files in results/data
-motion_control/results/data/*.csv
-motion_control/results/data/*.pt
-resource_allocation/results/data/*.csv
-resource_allocation/results/data/*.pt
-
-# Ignore model checkpoints
+# Checkpoints and per-epoch training logs (regenerate with ./run.sh)
 motion_control/models/
 resource_allocation/models/
+
+# pytest
+.pytest_cache/
 
 # Ignore compiled Python files
 *.pyc

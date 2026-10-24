@@ -1,17 +1,19 @@
 #!/bin/bash
-PROJECT_NAME=${PWD##*/}
-echo "🚀 Setting up $PROJECT_NAME environment..."
+# Create (or update) the neural_hjb conda environment and install this repo into it.
+set -euo pipefail
+cd "$(dirname "$0")"
+ENV_NAME=neural_hjb
 
-# Create & activate conda env
-conda create -n $PROJECT_NAME python=3.11 -y
-echo "✅ Created conda env: $PROJECT_NAME"
-
-# Install dependencies
-echo "📦 Installing dependencies..."
-conda run -n $PROJECT_NAME pip install -r requirements.txt 2>/dev/null || echo "⚠️  No requirements.txt found"
+if conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
+    echo "Conda env '$ENV_NAME' already exists; updating it."
+else
+    conda create -n "$ENV_NAME" python=3.11 -y
+fi
+conda run -n "$ENV_NAME" pip install -e ".[dev]"
 
 echo "
-✨ Setup complete! Next steps:
-1. Activate env: conda activate $PROJECT_NAME
-2. Run experiments: ./run.sh
+Setup complete. Next steps:
+1. Activate env: conda activate $ENV_NAME
+2. Run the tests: pytest
+3. Reproduce the results: ./run.sh
 "

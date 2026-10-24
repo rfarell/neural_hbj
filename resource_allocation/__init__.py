@@ -1,1 +1,1 @@
-"""Resource allocation module for solving HJB equations."""
+"""Resource allocation: split production between reinvestment and consumption."""
