@@ -1,11 +1,11 @@
 # Neural Network Solutions for Hamilton-Jacobi-Bellman Equations
 
-This repository trains a policy network $u(t, x)$ and a cost-to-go network $J(t, x)$ for finite-horizon optimal control problems, using the Hamilton-Jacobi-Bellman (HJB) equation together with simulated closed-loop cost. Both test problems have closed-form solutions (they are classic examples from Bertsekas, *Dynamic Programming and Optimal Control*, Vol. I, Ch. 7), so every number below is an error against the exact answer:
+This repository trains two neural networks for finite-horizon optimal control problems: a policy $u(t, x)$ and a cost-to-go $J(t, x)$. The training signal is the Hamilton-Jacobi-Bellman (HJB) equation, which $J$ must satisfy, together with the cost of simulating the policy forward in time. It is applied to two classic problems from Bertsekas, *Dynamic Programming and Optimal Control* (Vol. I, Ch. 7):
 
-1. **Motion control**: drive a point in $\mathbb{R}^n$ to the origin at bounded speed, $n = 2, 4, 6, 8$
-2. **Resource allocation**: split production between reinvestment and consumption; the optimal control is bang-bang
+1. **Motion control**: drive a point in $\mathbb{R}^n$ to the origin at bounded speed, for $n = 2, 4, 6, 8$.
+2. **Resource allocation**: split production between reinvestment and consumption; the optimal control is bang-bang.
 
-**Results** (mean of 3 seeds, against the exact solutions): the learned cost-to-go is within 1.5–2.6% relative error for motion control in 2 to 8 dimensions and 1.0% for resource allocation, and the learned policies cost at most 0.03% more than optimal (motion control) and earn 0.1% less (resource allocation). Version 1.0 of this repository had errors in its losses and overstated its results; [What changed in v1.1](#what-changed-in-v11) lists them, and the tables below compare against the v1.0 code.
+Both have closed-form solutions, so every number below is an error against the exact answer. Over 3 seeds, the learned cost-to-go has 1.5–2.6% relative error for motion control in 2 to 8 dimensions and 1.0% for resource allocation, and the learned policies cost at most 0.03% more than optimal (motion control) and earn 0.1% less (resource allocation). Version 1.0 of this repository had errors in its losses and overstated its results; [What changed in v1.1](#what-changed-in-v11) lists them, and the tables below compare against the v1.0 code.
 
 ## Method
 
@@ -28,9 +28,9 @@ Two networks are trained together: a policy $u_\theta(t, x)$, mapped into the co
 | `policy` | $C(t, x)$, the cost of simulating $u_\theta$ from $(t, x)$ to $T$, differentiated through an RK4 solve | policy |
 | `value_fit` | $(J(t, x) - C(t, x))^2$, with $C$ held fixed | cost-to-go |
 
-Every term is built from $f$, $g$ and $h$ by automatic differentiation, so adding a problem means writing those (and, for scoring, the exact solution) in a subclass of `neural_hjb.ControlProblem`.
+Every term is built from $f$, $g$ and $h$ by automatic differentiation, so a new problem only has to define those (see [Adding a problem](#adding-a-problem)).
 
-Training runs backward in time over five stages of 1000 Adam steps (learning rate $10^{-3}$, batch 128): stage $k$ samples $t$ uniformly in $[kT/5,\, T]$ and $x$ uniformly from the problem's domain, so the horizon grows from the last fifth of $[0, T]$ to all of it.
+Training runs backward in time over five stages of 1000 Adam steps (learning rate $10^{-3}$, batch 128): stage $k$ samples $t$ uniformly in $[kT/5,\, T]$ and $x$ uniformly from the problem's domain, so the horizon grows from the last fifth of $[0, T]$, where the terminal condition pins $J$ down, to all of it.
 
 ## Problems
 
@@ -48,7 +48,7 @@ Inside the ball $\lVert x \rVert \le T - t$ the origin is reachable, $J^* = 0$, 
 
 $$\max_u \int_0^T (1 - u)\,x\,dt \quad \text{subject to} \quad \dot x = \gamma u x,\ u \in [0, 1],\ \gamma = 0.5,\ T = 4.$$
 
-$x$ is a production rate; the fraction $u$ is reinvested and the rest consumed. The optimal control is bang-bang: reinvest everything until $t_s = T - 1/\gamma = 2$, then consume everything. The optimal reward-to-go is $V^*(t, x) = x\,\phi(t)$ with $\phi(t) = T - t$ for $t \ge t_s$ and $\phi(t) = e^{\gamma (t_s - t)}/\gamma$ for $t < t_s$. In the code the problem is written as minimization, with $g = -(1 - u)x$ and $J = -V$. Training and test states are drawn from $[1, 5]$.
+$x$ is a production rate; a fraction $u$ of it is reinvested and the rest is consumed. The optimal control is bang-bang: reinvest everything until $t_s = T - 1/\gamma = 2$, then consume everything. The optimal reward-to-go is $V^*(t, x) = x\,\phi(t)$ with $\phi(t) = T - t$ for $t \ge t_s$ and $\phi(t) = e^{\gamma (t_s - t)}/\gamma$ for $t < t_s$. In the code the problem is written as minimization, with $g = -(1 - u)x$ and $J = -V$. Training and test states are drawn from $[1, 5]$.
 
 ## Results
 
@@ -86,14 +86,14 @@ The v1.0 policies were already close to optimal (and marginally better at n = 6)
 
 The switching-time error is $\lvert t_{\text{switch}} - t_s \rvert$ for closed-loop paths started at $t = 0$ from nine initial states in $[1, 5]$, with $t_{\text{switch}}$ the time the control crosses 1/2.
 
-The v1.0 reward-to-go was wrong because its HJB loss was: at the exact solution its three residual terms evaluate to 21, 1.8 and 43 instead of 0. Its policy was nonetheless accurate, because the policy learned from the simulated reward, which was correct. It also switches more sharply than v1.1's, which smooths the switch over a few tenths of a time unit and gives up about 0.1% of the reward. Training with 100 instead of 40 RK4 steps per rollout did not sharpen it.
+The v1.0 reward-to-go was wrong because its HJB loss was wrong: at the exact solution the three residual terms evaluate to 21, 1.8 and 43 instead of 0. Its policy was nonetheless accurate, because the policy learned mostly from the simulated reward, which was computed correctly. That policy also switches more sharply than v1.1's, which smooths the switch over a few tenths of a time unit and gives up about 0.1% of the reward; training with 100 instead of 40 RK4 steps per rollout did not sharpen it.
 
 ![Learned control and reward-to-go](resource_allocation/results/figures/solution.png)
 *Full method, seed 0, with the v1.0 code (seed 0) in gray. Left: control along closed-loop paths; the four learned paths from $x_0 = 1, \dots, 4$ nearly coincide. Right: learned reward-to-go divided by $x$, which should match the exact $\phi(t)$ for every $x$.*
 
 ### What each loss term contributes
 
-Every variant below was trained with the same seeds and settings, with the named terms removed.
+Each variant below drops the named terms from the loss and is otherwise trained with the same seeds and settings.
 
 **Motion control**, cost-to-go error / excess cost:
 
@@ -138,7 +138,7 @@ Or, in any Python 3.9+ environment: `pip install -e ".[dev]"`.
 ## Usage
 
 ```bash
-pytest                     # exact solutions satisfy the losses; a tiny end-to-end run works
+pytest                     # the exact solutions zero every loss; a tiny end-to-end run works
 ./run.sh                   # train and evaluate everything in the tables above
 VARIANTS=full SEEDS=0 ./run.sh   # just the method, one seed (about 15 minutes)
 ```
@@ -152,7 +152,37 @@ python -m resource_allocation.train --variants full --seeds 0 1 2
 python -m resource_allocation.evaluate
 ```
 
-Training skips runs that already have a checkpoint (pass `--force` to retrain) and runs `--jobs` single-threaded runs in parallel. Checkpoints and per-epoch loss logs go to `<problem>/models/` (not tracked); metrics and figures go to `<problem>/results/`. `--help` lists the remaining options (epochs, stages, batch size, learning rate, width, RK4 steps).
+Training skips runs that already have a checkpoint (pass `--force` to retrain) and trains `--jobs` of them in parallel, each single-threaded. Checkpoints and per-epoch loss logs go to `<problem>/models/` (not tracked); metrics and figures go to `<problem>/results/`. `--help` lists the remaining options (epochs, stages, batch size, learning rate, width, RK4 steps).
+
+### Adding a problem
+
+Subclass `neural_hjb.ControlProblem` with the dynamics $f$, the costs $g$ and $h$ (each defaults to zero), the control set and the training domain. Every loss term follows by automatic differentiation:
+
+```python
+import torch
+from neural_hjb import ControlProblem
+from neural_hjb.experiment import train_run
+
+class Brake(ControlProblem):
+    """Stop a cart on a line: dx/dt = u, |u| <= 1, minimize x(T)^2 + int u^2 dt."""
+    name, state_dim, control_dim, constraint, T = "brake", 1, 1, "unit_ball", 1.0
+
+    def dynamics(self, t, x, u):
+        return u
+
+    def running_cost(self, t, x, u):
+        return u.pow(2)
+
+    def terminal_cost(self, x):
+        return x.pow(2)
+
+    def sample_states(self, n, generator=None):
+        return 4 * torch.rand(n, 1, generator=generator) - 2
+
+train_run(Brake(), "full", seed=0, model_dir="models")   # saves models/full/brake_seed0.pt
+```
+
+Add `optimal_control` and `optimal_cost` to score the result against an exact solution the way the two `evaluate.py` scripts do.
 
 ## Repository layout
 
@@ -162,9 +192,11 @@ neural_hjb/               shared solver
   networks.py             PolicyNet (control constraints), ValueNet
   solver.py               HJB losses, closed-loop rollout, staged training
   experiment.py           checkpoints, parallel training grid
+  cli.py, plotting.py     training options, figure style
 motion_control/           problem.py, train.py, evaluate.py, results/
 resource_allocation/      problem.py, train.py, evaluate.py, results/
 tests/                    exact-solution checks and an end-to-end smoke test
+run.sh, setup.sh          reproduce every result; create the conda env
 ```
 
 ## What changed in v1.1

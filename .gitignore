@@ -1,73 +1,14 @@
-# Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
-*$py.class
-
-# Claude
-.claude/
-llm/
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 *.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
-venv/
-ENV/
-env/
+build/
+dist/
+.pytest_cache/
 .venv/
-.env/
-
-# PyCharm
-.idea/
-*.iml
-
-# VS Code
 .vscode/
-
-# macOS specific files
+.idea/
 .DS_Store
-
-# Logs
-*.log
-
-# Temporary files
-*.tmp
-*.temp
-
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
+.claude/
 
 # Checkpoints and per-epoch training logs (regenerate with ./run.sh)
 motion_control/models/
 resource_allocation/models/
-
-# pytest
-.pytest_cache/
-
-# Ignore compiled Python files
-*.pyc
-
-# Miscellaneous
-*.swp
-*.swo
-*~
-
-# Aggregate output
-tmp/

@@ -13,8 +13,8 @@ class ControlProblem:
         J_t + min_u [ J_x . f(t, x, u) + g(t, x, u) ] = 0,    J(T, x) = h(x).
 
     Maximization problems are written as minimization of the negated reward.
-    Subclasses define f, g, h, the control set, the training domain and, so the
-    learned solution can be scored, the exact solution.
+    Subclasses define f, g, h, the control set and the training domain, plus the
+    exact solution if the learned one is to be scored against it.
 
     All tensors are batched: t is [B, 1], x is [B, state_dim], u is [B, control_dim].
     """
@@ -56,5 +56,5 @@ class ControlProblem:
         return self.name
 
     def config(self) -> dict:
-        """Constructor arguments, stored with checkpoints."""
-        raise NotImplementedError
+        """Constructor arguments, stored with checkpoints so the problem can be rebuilt."""
+        return {}

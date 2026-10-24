@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neural-hjb"
+version = "1.1.0"
+description = "Neural network solutions for Hamilton-Jacobi-Bellman equations in optimal control"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Ryan Farell" }]
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.1",
+    "torchdiffeq>=0.2.3",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.urls]
+Repository = "https://github.com/rfarell/neural_hbj"
+
+[tool.setuptools.packages.find]
+include = ["neural_hjb*", "motion_control*", "resource_allocation*"]
